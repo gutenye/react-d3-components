@@ -6,7 +6,7 @@
   "main": "dist/react-d3-components.js",
   "license": "MIT",
   "dependencies": {
-    "d3": "~3.5.5"
+    "d3": "3.5.5"
   },
   "ignore": [
     "**/.*",
