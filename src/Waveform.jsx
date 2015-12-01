@@ -14,6 +14,24 @@ let StackDataMixin = require('./StackDataMixin');
 let DefaultScalesMixin = require('./DefaultScalesMixin');
 let TooltipMixin = require('./TooltipMixin');
 
+
+ // receive array and return a subsampled array of size n
+    //
+    // a= the array;
+    // n= number of sample you want output
+let subSample = function(a, n) {
+      var returnArray = [];
+      var m = a.length;
+      var samplingRatio = m / n;
+
+      //just round down for now in case of comma separated
+      for (var i = 0; i < m;) {
+        returnArray.push(a[Math.floor(i)]);
+        i += samplingRatio;
+      }
+      return returnArray;
+    }
+
 let DataSet = React.createClass({
     propTypes: {
         data: React.PropTypes.array.isRequired,
@@ -37,56 +55,42 @@ let DataSet = React.createClass({
              x,
              y,
              y0,
+             x0,
              onMouseEnter,
-             onMouseLeave,
-             groupedBars} = this.props;
-
+             onMouseLeave} = this.props;
         let bars;
-        if (groupedBars) {
-            bars = data.map((stack, serieIndex) => {
-                return values(stack).map((e, index) => {
-                    return (
-                        <Bar
-                            key={`${label(stack)}.${index}`}
-                            width={xScale.rangeBand() / data.length}
-                            height={yScale(yScale.domain()[0]) - yScale(y(e))}
-                            x={xScale(x(e)) + ((xScale.rangeBand() * serieIndex) / data.length)}
-                            y={yScale(y(e))}
-                            fill={colorScale(label(stack))}
-                            data={e}
-                            onMouseEnter={onMouseEnter}
-                            onMouseLeave={onMouseLeave}
-                            />
-                    );
-                });
-            });
-        } else {
-            bars = data.map(stack => {
-                return values(stack).map((e, index) => {
-                    return (
-                        <Bar
-                            key={`${label(stack)}.${index}`}
-                            width={xScale.rangeBand()}
-                            height={yScale(yScale.domain()[0]) - yScale(y(e))}
-                            x={xScale(x(e))}
-                            y={yScale(y0(e) + y(e))}
-                            fill={colorScale(label(stack))}
-                            data={e}
-                            onMouseEnter={onMouseEnter}
-                            onMouseLeave={onMouseLeave}
-                            />
-                    );
-                });
-            });
-        }
+        let height = yScale(yScale.domain()[0]);
+        bars = data.map((stack, serieIndex) => {
+            return values(stack).map((e, index) => {
+                // maps the range [0,1] to the range [0, yDomain]
+                let yValue = height * y(e);
+                // center vertically to have upper and lower part of the waveform
+                let vy = height/2 - (yValue/2);
+                //position x(e) * width * 2 because we want equal sapce.
+                let vx = 2*x0*index;
 
+                return (
+                    <Bar
+                        key={`${label(stack)}.${index}`}
+                        width={x0}
+                        height={yValue}
+                        x={vx}
+                        y={vy}
+                        fill={colorScale(Math.floor(vx))}
+                        data={e}
+                        onMouseEnter={onMouseEnter}
+                        onMouseLeave={onMouseLeave}
+                    />
+                );
+            });
+        });
         return (
-                <g>{bars}</g>
+            <g>{bars}</g>
         );
     }
 });
 
-let BarChart = React.createClass({
+let Waveform = React.createClass({
     mixins: [DefaultPropsMixin,
              HeightWidthMixin,
              ArrayifyMixin,
@@ -149,48 +153,45 @@ let BarChart = React.createClass({
                         this._xScale,
                         this._yScale];
 
-        return (
-                <div>
-                <Chart height={height} width={width} margin={margin}>
-                <DataSet
-            data={data}
-            xScale={xScale}
-            yScale={yScale}
-            colorScale={colorScale}
-            values={values}
-            label={label}
-            y={y}
-            y0={y0}
-            x={x}
-            onMouseEnter={this.onMouseEnter}
-            onMouseLeave={this.onMouseLeave}
-            groupedBars={groupedBars}
-                />
+        let preserveAspectRatio = "none";
+        let viewBox = "0 0 "+width+" "+height;
 
-                <Axis
-            className={"x axis"}
-            orientation={"bottom"}
-            scale={xScale}
-            height={innerHeight}
-            width={innerWidth}
-            {...xAxis}
-                />
+        // there are two options, if the samples are less than the space available
+        // we'll stretch the width of bar and inbetween spaces.
+        // Otherwise we just subSample the dataArray.
+        let barWidth;
+        if(data[0].values.length > innerWidth/2){
+            data[0].values = subSample(data[0].values,innerWidth/2);
+            barWidth = 1;
+        } else {
+            barWidth = (innerWidth/2)/data[0].values.length;
+        }
 
-                <Axis
-            className={"y axis"}
-            orientation={"left"}
-            scale={yScale}
-            height={innerHeight}
-            width={innerWidth}
-            {...yAxis}
-                />
-                { this.props.children }
-                </Chart>
-
-                <Tooltip {...this.state.tooltip}/>
-                </div>
+        return React.createElement(
+            "div",
+            null,
+            React.createElement(
+                Chart,
+                { height: height, width: width, margin: margin, viewBox: viewBox, preserveAspectRatio: preserveAspectRatio},
+                React.createElement(DataSet, {
+                    data: data,
+                    xScale: xScale,
+                    yScale: yScale,
+                    colorScale: colorScale,
+                    label: label,
+                    values: values,
+                    x: x,
+                    y: y,
+                    y0: y0,
+                    x0: barWidth,
+                    onMouseEnter: this.onMouseEnter,
+                    onMouseLeave: this.onMouseLeave
+                }),
+                this.props.children
+            )
         );
     }
 });
 
-module.exports = BarChart;
+
+module.exports = Waveform;

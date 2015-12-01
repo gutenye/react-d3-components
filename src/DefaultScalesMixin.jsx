@@ -2,140 +2,152 @@ let React = require('react');
 let d3 = require('d3');
 
 let DefaultScalesMixin = {
-	propTypes: {
-		barPadding: React.PropTypes.number
-	},
+    propTypes: {
+        barPadding: React.PropTypes.number
+    },
 
-	getDefaultProps() {
-		return {
-			barPadding: 0.5
-		};
-	},
+    getDefaultProps() {
+        return {
+            barPadding: 0.5
+        };
+    },
 
-	componentWillMount() {
-		this._makeScales(this.props);
-	},
+    componentWillMount() {
+        this._makeScales(this.props);
+    },
 
-	componentWillReceiveProps(nextProps) {
-		this._makeScales(nextProps);
-	},
+    componentWillReceiveProps(nextProps) {
+        this._makeScales(nextProps);
+    },
 
-	_makeScales(props) {
-		let {xScale, xIntercept, yScale, yIntercept} = props;
+    _makeScales(props) {
+        let {xScale, xIntercept, yScale, yIntercept} = props;
 
-		if (!xScale) {
-			[this._xScale, this._xIntercept] = this._makeXScale();
-		} else {
-			[this._xScale, this._xIntercept] = [xScale, xIntercept];
-		}
+        if (!xScale) {
+            [this._xScale, this._xIntercept] = this._makeXScale(props);
+        } else {
+            [this._xScale, this._xIntercept] = [xScale, xIntercept];
+        }
 
-		if (!yScale) {
-			[this._yScale, this._yIntercept] = this._makeYScale();
-		} else {
-			[this._yScale, this._yIntercept] = [yScale, yIntercept];
-		}
-	},
+        if (!yScale) {
+            [this._yScale, this._yIntercept] = this._makeYScale(props);
+        } else {
+            [this._yScale, this._yIntercept] = [yScale, yIntercept];
+        }
+    },
 
-	_makeXScale() {
-		let {x, values} = this.props;
-		let data = this._data;
+    _makeXScale(props) {
+        let {x, values} = props;
+        let data = this._data;
 
-		if (typeof (x(values(data[0])[0])) === 'number') {
-			return this._makeLinearXScale();
-		} else if (typeof x(values(data[0])[0]).getMonth === 'function') {
-			return this._makeTimeXScale();
-		} else {
-			return this._makeOrdinalXScale();
-		}
-	},
+        if (typeof (x(values(data[0])[0])) === 'number') {
+            return this._makeLinearXScale(props);
+        } else if (typeof x(values(data[0])[0]).getMonth === 'function') {
+            return this._makeTimeXScale(props);
+        } else {
+            return this._makeOrdinalXScale(props);
+        }
+    },
 
-	_makeLinearXScale() {
-		let {x, values} = this.props;
-		let [data, innerWidth] = [this._data, this._innerWidth];
+    _makeLinearXScale(props) {
+        let {x, values} = props;
+        let [data, innerWidth] = [this._data, this._innerWidth];
 
-		let extents = d3.extent(Array.prototype.concat.apply([],
-															 data.map(stack => {
-																 return values(stack).map(e => {
-																	 return x(e);
-																 });
-															 })));
+        let extents =
+                d3.extent(
+                    Array.prototype.concat.apply([],
+                                                 data.map(stack => {
+                                                     return values(stack).map(e => {
+                                                         return x(e);
+                                                     });
+                                                 })));
 
-		let scale = d3.scale.linear()
-				.domain(extents)
-				.range([0, innerWidth]);
+        let scale = d3.scale.linear()
+                .domain(extents)
+                .range([0, innerWidth]);
 
-		let zero = d3.max([0, scale.domain()[0]]);
-		let xIntercept = scale(zero);
+        let zero = d3.max([0, scale.domain()[0]]);
+        let xIntercept = scale(zero);
 
-		return [scale, xIntercept];
-	},
+        return [scale, xIntercept];
+    },
 
-	_makeOrdinalXScale() {
-		let {x, values, barPadding} = this.props;
-		let [data, innerWidth] = [this._data, this._innerWidth];
+    _makeOrdinalXScale(props) {
+        let {x, values, barPadding} = props;
+        let [data, innerWidth] = [this._data, this._innerWidth];
 
-		let scale = d3.scale.ordinal()
-				.domain(values(data[0]).map(e => { return x(e); }))
-				.rangeRoundBands([0, innerWidth], barPadding);
+        let scale = d3.scale.ordinal()
+                .domain(values(data[0]).map(e => { return x(e); }))
+                .rangeRoundBands([0, innerWidth], barPadding);
 
-		return [scale, 0];
-	},
+        return [scale, 0];
+    },
 
-	_makeTimeXScale() {
-		let {x, values, barPadding} = this.props;
-		let [data, innerWidth] = [this._data, this._innerWidth];
+    _makeTimeXScale(props) {
+        let {x, values, barPadding} = props;
+        let [data, innerWidth] = [this._data, this._innerWidth];
 
-		let scale = d3.time.scale()
-				.domain(values(data[0]).map(e => { return x(e); }))
-				.range([0, innerWidth]);
+        let minDate = d3.min(values(data[0]), x);
 
-		return [scale, 0];
-	},
+        let maxDate = d3.max(values(data[0]), x);
 
-	_makeYScale() {
-		let {y, values} = this.props;
-		let data = this._data;
+        let scale = d3.time.scale()
+                .domain([minDate, maxDate])
+                .range([0, innerWidth]);
 
-		if (typeof y(values(data[0])[0]) === 'number') {
-			return this._makeLinearYScale();
-		} else {
-			return this._makeOrdinalYScale();
-		}
-	},
+        return [scale, 0];
+    },
 
-	_makeLinearYScale() {
-		let {y, y0, values} = this.props;
-		let [data, innerHeight] = [this._data, this._innerHeight];
+    _makeYScale(props) {
+        let {y, values} = props;
+        let data = this._data;
 
-		let extents = d3.extent(Array.prototype.concat.apply([],
-															 data.map(stack => {
-																 return values(stack).map(e => {
-																	 return y0(e) + y(e);
-																 });
-															 })));
+        if (typeof y(values(data[0])[0]) === 'number') {
+            return this._makeLinearYScale(props);
+        } else {
+            return this._makeOrdinalYScale(props);
+        }
+    },
 
-		extents = [d3.min([0, extents[0]]), extents[1]];
+    _makeLinearYScale(props) {
+        let {y, y0, values, groupedBars} = props;
+        let [data, innerHeight] = [this._data, this._innerHeight];
 
-		let scale = d3.scale.linear()
-				.domain(extents)
-				.range([innerHeight, 0]);
+        let extents =
+                d3.extent(
+                    Array.prototype.concat.apply([],
+                                                 data.map(stack => {
+                                                     return values(stack).map(e => {
+                                                         if (groupedBars) {
+                                                             return y(e);
+                                                         } else {
+                                                             return y0(e) + y(e);
+                                                         }
+                                                     });
+                                                 })));
 
-		let zero = d3.max([0, scale.domain()[0]]);
-		let yIntercept = scale(zero);
+        extents = [d3.min([0, extents[0]]), extents[1]];
 
-		return [scale, yIntercept];
-	},
+        let scale = d3.scale.linear()
+                .domain(extents)
+                .range([innerHeight, 0]);
 
-	_makeOrdinalYScale() {
-		let [data, innerHeight] = [this._data, this._innerHeight];
+        let zero = d3.max([0, scale.domain()[0]]);
+        let yIntercept = scale(zero);
 
-		let scale = d3.scale.ordinal()
-				.range([innerHeight, 0]);
+        return [scale, yIntercept];
+    },
 
-		let yIntercept = scale(0);
+    _makeOrdinalYScale() {
+        let [data, innerHeight] = [this._data, this._innerHeight];
 
-		return [scale, yIntercept];
-	}
+        let scale = d3.scale.ordinal()
+                .range([innerHeight, 0]);
+
+        let yIntercept = scale(0);
+
+        return [scale, yIntercept];
+    }
 };
 
 module.exports = DefaultScalesMixin;
